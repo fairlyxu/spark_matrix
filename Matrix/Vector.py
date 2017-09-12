@@ -9,6 +9,7 @@ Created on Thu Sep 07 21:14:52 2017
 import numpy as np
 from sklearn import preprocessing
 from scipy.sparse import coo_matrix
+import scipy.sparse as sp
 
 MAX_LENGTH = 100000000
 class Vector(object):
@@ -28,12 +29,14 @@ class Vector(object):
     def zeros(self):
         self.vector = np.zeros((1,self.length))
         
-    def normal(self,mu=0,sigma=1):
+    def normal(self,mu=0,sigma=1,normalized=True):
         """
         正太
         """
         self.vector = np.random.normal(mu,sigma,(1,self.length))
-    
+        if normalized:
+            self.normalize()
+
     def normalize(self,norm='l2'):
         """
         正则化
@@ -50,8 +53,7 @@ class Vector(object):
         col = [i for i in xrange(self.length)]
         data = [self.vector[0][i] for i in xrange(self.length)]
         self.vector = coo_matrix((data, (row, col)),shape=(1, self.length))
-       
-    
+
     def multiply(self,vector):
         """
         向量乘法
@@ -68,11 +70,11 @@ class Vector(object):
         
         
         if isinstance(self.vector,np.ndarray) and isinstance(vector.vector,np.ndarray):
-            return sum(sum((self.vector*vector.vector)))
+            return float(sum(sum((self.vector*vector.vector))))
         
         self.to_coo()
         vector.to_coo()
-        return (self.vector*vector.vector.T).data[0]
+        return float((self.vector*vector.vector.T).data[0])
        
     def __mul__(self,value):
         """
@@ -131,13 +133,44 @@ class Vector(object):
         result = Vector(self.length)
         result.vector = self.vector-vector.vector
         return result
-
+    
+    def __getitem__(self,index):
+        """
+        取值
+        """
+        if index >= self.length or index < 0:
+            raise Exception("Index Error!")
+        if isinstance(self.vector,np.ndarray):
+            return self.vector[0][index]
+        elif isinstance(self.vector,coo_matrix):
+            return self.vector.coeffRef(0,index)
+        
+    def __len__(self):
+        return self.length
+    
+    
+    def to_rdd(self,spark_context,row_id=0,partitions=100):
+        """
+        转化为rdd
+        """
+        v = None
+        if isinstance(self.vector,coo_matrix):
+            v = self.vector.todense()[0]
+        elif isinstance(self.vector,np.ndarray):
+            v = self.vector[0]
+        return spark_context.parallelize(filter(lambda x:x[1] != 0,map(lambda _:((row_id,_[0]),_[1]),enumerate(v))),partitions)
+        
+    def __del__(self):
+        del self.vector
+   
+    def norm(self):
+        if isinstance(self.vector,coo_matrix):
+            return float(sp.linalg.norm(self.vector))
+        elif isinstance(self.vector,np.ndarray):
+            return float(np.linalg.norm(self.vector))
+ 
         
 if __name__ == '__main__':
     v = Vector(100)
     v.ones()
-    vv = Vector(100)
-    vv.ones()
-    vv.to_coo()
-    print type(v + 5)
-        
+    

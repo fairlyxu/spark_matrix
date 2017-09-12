@@ -11,7 +11,7 @@ from MatrixInRDD import MatrixInRDD
 from BlockMatrixInRDD import BlockMatrixInRDD
 from RowMatrixInRDD import RowMatrixInRDD
 from Vector import Vector
-MIN_BLOCK_SIZE = 100
+MIN_BLOCK_SIZE = 10
 
 def matrix_matrix_multiply(block_matrix_obj1,block_matrix_obj2,partitions=100):
     """
@@ -24,10 +24,10 @@ def matrix_matrix_multiply(block_matrix_obj1,block_matrix_obj2,partitions=100):
     assert block_matrix_obj1.cols == block_matrix_obj2.rows
         
     #获得右边矩阵的块-列
-    COLS = block_matrix_obj2.cols/block_matrix_obj2.block_size
+    COLS = block_matrix_obj2.cols/block_matrix_obj2.block_size+1
     block_size =  block_matrix_obj1.block_size
     #获得左边矩阵的块-行
-    ROWS = block_matrix_obj1.cols/block_matrix_obj1.block_size
+    ROWS = block_matrix_obj1.cols/block_matrix_obj1.block_size+1
     def left(kv):
         """
         生成一个个键值对
@@ -62,11 +62,9 @@ def matrix_matrix_multiply(block_matrix_obj1,block_matrix_obj2,partitions=100):
         block_matrix_obj1.blocking()
     if not block_matrix_obj2.blocked:
         block_matrix_obj2.blocking()
-            
     rdd = block_matrix_obj1.rdd.flatMap(lambda _:left(_)).join(block_matrix_obj2.rdd.flatMap(lambda _:right(_)),
                 partitions).mapValues(lambda _:_[0].dot(_[1])).map(lambda _:((_[0][0],_[0][1]),_[1])).\
                 reduceByKey(lambda x,y:x+y,partitions).flatMap(lambda _:to_pair(_))
-        
     #生成对象
     bmirdd = BlockMatrixInRDD(block_matrix_obj1.rows,block_matrix_obj2.cols,block_size)
     bmirdd.set_rdd(rdd)
@@ -104,14 +102,17 @@ def multiply(obj1,obj2,spark_context,partitions=100):
         #生成对象
         bobj1 = RowMatrixInRDD(obj1.rows,obj1.cols)
         bobj1.set_rdd(obj1.rdd)
+        bobj1.format = obj1.format
         bobj1.change_format(MatrixInRDD.ROW)
-        return matrix_vector_multiply(bobj1,obj2,partitions)
+        return matrix_vector_multiply(bobj1,obj2,spark_context,partitions)
     if isinstance(obj1,MatrixInRDD) and isinstance(obj2,MatrixInRDD):
         #生成对象
         bobj1 = BlockMatrixInRDD(obj1.rows,obj1.cols,MIN_BLOCK_SIZE)
         bobj1.set_rdd(obj1.rdd)
+        bobj1.format = obj1.format
         bobj2 = BlockMatrixInRDD(obj2.rows,obj2.cols,MIN_BLOCK_SIZE)
         bobj2.set_rdd(obj2.rdd)
+        bobj2.format = obj2.format
         return matrix_matrix_multiply(bobj1,bobj2,partitions)
     if isinstance(obj1,Vector) and isinstance(obj2,Vector):
         #生成对象

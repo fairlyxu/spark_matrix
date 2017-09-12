@@ -6,7 +6,7 @@ Created on Fri Sep 08 13:32:31 2017
 
 @description:这是矩阵相关的测试程序
 """
-from MatrixOperatorMultiplay import *
+from MatrixOperatorMultiply import *
 from MatrixOperatorOther import *
 
 def merge_test():
@@ -50,6 +50,16 @@ def matrix_add_test():
     result.filter()
     print result.rdd.collect()
 
+def orth_vector_test():
+    a = Vector(100)
+    a.normal()
+    V = []
+    V.append(a)
+    b = orth_vector(V)
+    print b.multiply(a)
+    V.append(b)
+    c = orth_vector(V)
+    print c.multiply(b),c.multiply(a)
 if __name__ == '__main__':
     import pyspark as ps
     conf = ps.SparkConf().setAppName("CF").setMaster("spark://spark31:7077")
@@ -62,4 +72,5 @@ if __name__ == '__main__':
     #transpose_test()
     #norm_test()
     #matrix_add_test()
-    merge_test()
+    #merge_test()
+    orth_vector_test()

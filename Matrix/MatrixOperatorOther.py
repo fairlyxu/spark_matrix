@@ -10,8 +10,10 @@ L2
 """
 from MatrixInRDD import MatrixInRDD
 from BlockMatrixInRDD import BlockMatrixInRDD
+from Vector import Vector
 from operator import add
 import math
+import numpy as np
 
 def trace(matrix,partitions=100):
     """
@@ -105,4 +107,44 @@ def norm(matrix,ntype='l2',partitions=100):
     
     
     
+def orth_vector(vectors):
+    """
+    生成一个向量与vectors都正交
+    """
+    if vectors is None or len(vectors) == 0:
+        raise Exception("Empty Vectors!")
+    n = None
+    for v in vectors:
+        assert isinstance(v,Vector)
+        if n == None:
+            n = v.length
+        else:
+            assert n == v.length
+    #以上是一些状态检查
+    tmp = Vector(n)
+    tmp.normal()
+    result = Vector(n)
+    result.zeros()
+    for v in vectors:
+       l = v.norm()
+       if l == 0:
+           continue
+       result = result + v*(tmp.multiply(v)/(l*l))
+    answer = tmp - result
+    answer.normalize()
+    return answer
 
+def numpy2MatrixInRDD(matrix,spark_context,partitions=100):
+    """
+    numpy matrix to MatrixInRDD
+    to_rdd(self,spark_context,row_id=0,partitions=100)
+    """
+    assert isinstance(matrix,np.ndarray)
+    (row,col) = matrix.shape
+    pairs = []
+    for r in xrange(row):
+        pairs.extend(filter(lambda x:x[1] != 0,map(lambda _:((r,_[0]),_[1]),enumerate(matrix[r]))))
+    m = MatrixInRDD(row,col)
+    m.rdd = spark_context.parallelize(pairs,partitions)
+    m.set_format(MatrixInRDD.PAIR)
+    return m
